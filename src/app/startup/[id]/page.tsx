@@ -10,7 +10,6 @@ import {
   MapPin,
   Calendar,
   Users,
-  ExternalLink,
   TrendingUp,
   Building2,
   Lightbulb,
@@ -18,6 +17,7 @@ import {
   Award,
   DollarSign,
   ChevronRight,
+  Rocket,
 } from "lucide-react";
 import {
   RadarChart,
@@ -26,38 +26,52 @@ import {
   PolarRadiusAxis,
   Radar,
   ResponsiveContainer,
-  AreaChart,
-  Area,
-  XAxis,
-  YAxis,
   Tooltip,
   BarChart,
   Bar,
+  XAxis,
+  YAxis,
 } from "recharts";
-import { startups } from "@/data/startups";
+import { startups, Startup } from "@/data/startups";
+import { earlyStageStartups } from "@/data/earlyStageStartups";
 import { formatCurrency, cn } from "@/lib/utils";
 import { ScoreGauge } from "@/components/ui/ScoreGauge";
 
+// Combine all startups for lookup
+const allStartups = [...startups, ...earlyStageStartups];
+
 export default function StartupDetailPage() {
   const params = useParams();
-  const startup = startups.find((s) => s.id === params.id);
+  const startup = allStartups.find((s) => s.id === params.id);
+  const isEarlyStage = startup ? earlyStageStartups.some((s) => s.id === startup.id) : false;
 
   const similarStartups = useMemo(() => {
     if (!startup) return [];
-    return startups
+    return allStartups
       .filter((s) => s.id !== startup.id && s.sector === startup.sector)
       .slice(0, 3);
   }, [startup]);
 
   if (!startup) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="text-center">
+      <div className="min-h-[calc(100vh-16rem)] flex items-center justify-center">
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="text-center"
+        >
           <h1 className="text-2xl font-bold text-white mb-4">Startup not found</h1>
-          <Link href="/" className="text-blue-400 hover:underline">
+          <p className="text-slate-400 mb-6">
+            The startup you&apos;re looking for doesn&apos;t exist in our database.
+          </p>
+          <Link
+            href="/"
+            className="inline-flex items-center gap-2 px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors"
+          >
+            <ArrowLeft className="w-4 h-4" />
             Back to leaderboard
           </Link>
-        </div>
+        </motion.div>
       </div>
     );
   }
@@ -78,14 +92,38 @@ export default function StartupDetailPage() {
     { name: "Momentum", score: startup.scores.momentum, weight: 10, color: "#EC4899" },
   ];
 
-  const fundingHistory = [
-    { round: "Seed", amount: startup.totalFunding * 0.05 },
-    { round: "Series A", amount: startup.totalFunding * 0.15 },
-    { round: "Series B", amount: startup.totalFunding * 0.35 },
-    { round: "Latest", amount: startup.lastRound.amount },
-  ].filter((r) => r.amount > 0);
+  // Generate realistic funding history based on last round
+  const generateFundingHistory = (startup: Startup) => {
+    const roundTypes = ["Pre-Seed", "Seed", "Series A", "Series B", "Series C", "Series D"];
+    const lastRoundIndex = roundTypes.indexOf(startup.lastRound.type);
 
-  const investmentThesis = `${startup.name} shows strong unicorn potential with an overall score of ${startup.scores.overall}/100.
+    if (lastRoundIndex === -1) {
+      return [{ round: startup.lastRound.type, amount: startup.lastRound.amount }];
+    }
+
+    const history: { round: string; amount: number }[] = [];
+    let remainingFunding = startup.totalFunding;
+
+    for (let i = lastRoundIndex; i >= 0; i--) {
+      const roundType = roundTypes[i];
+      if (roundType === startup.lastRound.type) {
+        history.unshift({ round: roundType, amount: startup.lastRound.amount });
+        remainingFunding -= startup.lastRound.amount;
+      } else if (remainingFunding > 0) {
+        const portion = remainingFunding * (i === 0 ? 1 : 0.4);
+        if (portion > 100_000) {
+          history.unshift({ round: roundType, amount: Math.round(portion) });
+          remainingFunding -= portion;
+        }
+      }
+    }
+
+    return history;
+  };
+
+  const fundingHistory = generateFundingHistory(startup);
+
+  const investmentThesis = `${startup.name} shows ${startup.scores.overall >= 85 ? "exceptional" : startup.scores.overall >= 70 ? "strong" : "promising"} unicorn potential with an overall score of ${startup.scores.overall}/100.
   The company's ${startup.scores.team >= 90 ? "exceptional" : startup.scores.team >= 80 ? "strong" : "solid"} team score (${startup.scores.team})
   combined with ${startup.scores.traction >= 85 ? "impressive" : "growing"} traction metrics position it well in the ${startup.sector} sector.
   With ${formatCurrency(startup.totalFunding)} raised and a ${formatCurrency(startup.currentValuation)} valuation,
@@ -95,7 +133,10 @@ export default function StartupDetailPage() {
     <div className="min-h-screen pb-20">
       {/* Header */}
       <section className="relative overflow-hidden py-8 sm:py-12">
-        <div className="absolute inset-0 bg-gradient-to-b from-blue-600/10 via-transparent to-transparent" />
+        <div className={cn(
+          "absolute inset-0 bg-gradient-to-b via-transparent to-transparent",
+          isEarlyStage ? "from-amber-600/10" : "from-blue-600/10"
+        )} />
 
         <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           {/* Back Button */}
@@ -106,6 +147,7 @@ export default function StartupDetailPage() {
             <Link
               href="/"
               className="inline-flex items-center gap-2 text-slate-400 hover:text-white transition-colors mb-8"
+              aria-label="Back to Leaderboard"
             >
               <ArrowLeft className="w-4 h-4" />
               Back to Leaderboard
@@ -123,7 +165,7 @@ export default function StartupDetailPage() {
               <div className="w-20 h-20 rounded-2xl bg-white/10 flex items-center justify-center overflow-hidden">
                 <Image
                   src={startup.logo}
-                  alt={startup.name}
+                  alt={`${startup.name} logo`}
                   width={64}
                   height={64}
                   className="object-contain"
@@ -134,19 +176,27 @@ export default function StartupDetailPage() {
                 />
               </div>
               <div>
-                <h1 className="text-3xl sm:text-4xl font-bold text-white mb-2">
-                  {startup.name}
-                </h1>
+                <div className="flex items-center gap-3 mb-2">
+                  <h1 className="text-3xl sm:text-4xl font-bold text-white">
+                    {startup.name}
+                  </h1>
+                  {isEarlyStage && (
+                    <span className="flex items-center gap-1 px-2 py-1 bg-amber-500/20 text-amber-400 rounded-full text-xs font-medium">
+                      <Rocket className="w-3 h-3" />
+                      Early Stage
+                    </span>
+                  )}
+                </div>
                 <div className="flex flex-wrap items-center gap-3 text-sm">
                   <span className="px-3 py-1 bg-blue-600/20 text-blue-400 rounded-full">
                     {startup.sector}
                   </span>
                   <span className="flex items-center gap-1 text-slate-400">
-                    <MapPin className="w-4 h-4" />
+                    <MapPin className="w-4 h-4" aria-hidden="true" />
                     {startup.city}, {startup.country}
                   </span>
                   <span className="flex items-center gap-1 text-slate-400">
-                    <Calendar className="w-4 h-4" />
+                    <Calendar className="w-4 h-4" aria-hidden="true" />
                     Founded {startup.founded}
                   </span>
                 </div>
@@ -164,7 +214,7 @@ export default function StartupDetailPage() {
                     <span className="text-sm text-slate-400">/100</span>
                   </p>
                   <p className={cn(
-                    "text-xs",
+                    "text-xs font-medium",
                     startup.scores.overall >= 85 ? "text-emerald-400" :
                     startup.scores.overall >= 70 ? "text-blue-400" : "text-amber-400"
                   )}>
@@ -191,7 +241,7 @@ export default function StartupDetailPage() {
               className="glass-card rounded-xl p-6"
             >
               <h2 className="text-xl font-semibold text-white mb-4 flex items-center gap-2">
-                <Building2 className="w-5 h-5 text-blue-500" />
+                <Building2 className="w-5 h-5 text-blue-500" aria-hidden="true" />
                 Overview
               </h2>
               <p className="text-slate-300 leading-relaxed mb-4">
@@ -225,13 +275,13 @@ export default function StartupDetailPage() {
               className="glass-card rounded-xl p-6"
             >
               <h2 className="text-xl font-semibold text-white mb-6 flex items-center gap-2">
-                <Target className="w-5 h-5 text-emerald-500" />
+                <Target className="w-5 h-5 text-emerald-500" aria-hidden="true" />
                 Score Breakdown
               </h2>
 
               <div className="grid md:grid-cols-2 gap-8">
                 {/* Radar Chart */}
-                <div className="h-64">
+                <div className="h-64" role="img" aria-label="Radar chart showing score breakdown">
                   <ResponsiveContainer width="100%" height="100%">
                     <RadarChart cx="50%" cy="50%" outerRadius="80%" data={radarData}>
                       <PolarGrid stroke="#334155" />
@@ -268,7 +318,7 @@ export default function StartupDetailPage() {
                           {item.score}
                         </span>
                       </div>
-                      <div className="h-2 bg-slate-700/50 rounded-full overflow-hidden">
+                      <div className="h-2 bg-slate-700/50 rounded-full overflow-hidden" role="progressbar" aria-valuenow={item.score} aria-valuemin={0} aria-valuemax={100}>
                         <motion.div
                           initial={{ width: 0 }}
                           animate={{ width: `${item.score}%` }}
@@ -291,11 +341,11 @@ export default function StartupDetailPage() {
               className="glass-card rounded-xl p-6"
             >
               <h2 className="text-xl font-semibold text-white mb-6 flex items-center gap-2">
-                <DollarSign className="w-5 h-5 text-amber-500" />
+                <DollarSign className="w-5 h-5 text-amber-500" aria-hidden="true" />
                 Funding History
               </h2>
 
-              <div className="h-48">
+              <div className="h-48" role="img" aria-label="Bar chart showing funding history">
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart data={fundingHistory}>
                     <XAxis
@@ -361,7 +411,7 @@ export default function StartupDetailPage() {
               className="glass-card rounded-xl p-6"
             >
               <h2 className="text-xl font-semibold text-white mb-4 flex items-center gap-2">
-                <Lightbulb className="w-5 h-5 text-amber-500" />
+                <Lightbulb className="w-5 h-5 text-amber-500" aria-hidden="true" />
                 Investment Thesis
               </h2>
               <p className="text-slate-300 leading-relaxed">
@@ -424,7 +474,7 @@ export default function StartupDetailPage() {
               className="glass-card rounded-xl p-6"
             >
               <h3 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
-                <Users className="w-5 h-5 text-purple-500" />
+                <Users className="w-5 h-5 text-purple-500" aria-hidden="true" />
                 Leadership Team
               </h3>
               <div className="space-y-4">
@@ -451,13 +501,13 @@ export default function StartupDetailPage() {
               className="glass-card rounded-xl p-6"
             >
               <h3 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
-                <Award className="w-5 h-5 text-amber-500" />
+                <Award className="w-5 h-5 text-amber-500" aria-hidden="true" />
                 Key Highlights
               </h3>
               <ul className="space-y-3">
                 {startup.highlights.map((highlight, index) => (
                   <li key={index} className="flex items-start gap-2 text-sm text-slate-300">
-                    <ChevronRight className="w-4 h-4 text-emerald-500 shrink-0 mt-0.5" />
+                    <ChevronRight className="w-4 h-4 text-emerald-500 shrink-0 mt-0.5" aria-hidden="true" />
                     {highlight}
                   </li>
                 ))}
@@ -483,7 +533,7 @@ export default function StartupDetailPage() {
                       <div className="w-8 h-8 rounded-lg bg-white/10 flex items-center justify-center overflow-hidden">
                         <Image
                           src={s.logo}
-                          alt={s.name}
+                          alt={`${s.name} logo`}
                           width={24}
                           height={24}
                           className="object-contain"
