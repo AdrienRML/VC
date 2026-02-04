@@ -1,23 +1,30 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { TrendingUp, Building2, DollarSign, Globe2 } from "lucide-react";
+import { TrendingUp, Building2, DollarSign, Rocket } from "lucide-react";
 import { startups } from "@/data/startups";
-import { formatCurrency, formatNumber } from "@/lib/utils";
+import { earlyStageStartups } from "@/data/earlyStageStartups";
+import { formatCurrency } from "@/lib/utils";
 
 export function StatsOverview() {
+  const allStartups = [...startups, ...earlyStageStartups];
   const totalValuation = startups.reduce((sum, s) => sum + s.currentValuation, 0);
-  const totalFunding = startups.reduce((sum, s) => sum + s.totalFunding, 0);
-  const avgScore = Math.round(startups.reduce((sum, s) => sum + s.scores.overall, 0) / startups.length);
-  const countriesCount = new Set(startups.map(s => s.country)).size;
+  const avgScore = Math.round(allStartups.reduce((sum, s) => sum + s.scores.overall, 0) / allStartups.length);
 
   const stats = [
     {
       icon: Building2,
-      label: "Startups Tracked",
+      label: "Scale-ups",
       value: startups.length.toString(),
       color: "text-blue-500",
       bgColor: "bg-blue-500/10",
+    },
+    {
+      icon: Rocket,
+      label: "Early Stage",
+      value: earlyStageStartups.length.toString(),
+      color: "text-amber-500",
+      bgColor: "bg-amber-500/10",
     },
     {
       icon: DollarSign,
@@ -28,37 +35,30 @@ export function StatsOverview() {
     },
     {
       icon: TrendingUp,
-      label: "Avg Unicorn Score",
+      label: "Avg Score",
       value: avgScore.toString(),
-      color: "text-amber-500",
-      bgColor: "bg-amber-500/10",
-    },
-    {
-      icon: Globe2,
-      label: "Countries",
-      value: countriesCount.toString(),
       color: "text-purple-500",
       bgColor: "bg-purple-500/10",
     },
   ];
 
   return (
-    <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+    <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 mb-6">
       {stats.map((stat, index) => (
         <motion.div
           key={stat.label}
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.3, delay: index * 0.1 }}
-          className="glass-card rounded-xl p-4"
+          className="glass-card rounded-xl p-3 sm:p-4"
         >
-          <div className="flex items-center gap-3">
-            <div className={`p-2 rounded-lg ${stat.bgColor}`}>
-              <stat.icon className={`w-5 h-5 ${stat.color}`} />
+          <div className="flex items-center gap-2 sm:gap-3">
+            <div className={`p-1.5 sm:p-2 rounded-lg ${stat.bgColor} shrink-0`}>
+              <stat.icon className={`w-4 h-4 sm:w-5 sm:h-5 ${stat.color}`} />
             </div>
-            <div>
-              <p className="text-xs text-slate-400">{stat.label}</p>
-              <p className={`text-xl font-bold font-mono ${stat.color}`}>{stat.value}</p>
+            <div className="min-w-0">
+              <p className="text-[10px] sm:text-xs text-slate-400 truncate">{stat.label}</p>
+              <p className={`text-lg sm:text-xl font-bold font-mono ${stat.color} truncate`}>{stat.value}</p>
             </div>
           </div>
         </motion.div>
